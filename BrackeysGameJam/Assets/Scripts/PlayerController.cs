@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -10,20 +8,18 @@ public class PlayerController : MonoBehaviour
     public float laneDistance = 3f; // distance between lanes
     public float laneSwitchSpeed = 10f;
     public float jumpForce = 7f;
-    public LayerMask groundLayer;
+    public float gravity = -20f;
 
     private CharacterController controller;
-    private Vector3 moveDirection;
-    private int currentLane = 0; // -1 = left, 0 = middle, 1 = right
-    private float gravity = -20f;
     private float verticalVelocity;
+    private int currentLane = 0; // -1 = left, 0 = middle, 1 = right
 
     [Header("Lives")]
-    public int lives = 3; // lose legs mechanic later
+    public int lives = 3;
 
-    // Input system actions
+    // Input system
     private PlayerInputActions inputActions;
-
+    private Vector2 moveInput;
 
     void Awake()
     {
@@ -33,53 +29,62 @@ public class PlayerController : MonoBehaviour
 
     void OnEnable()
     {
-        inputActions.Move.Enable();
-        inputActions.Move.Moveaction.performed += ctx => ChangeLane(-1);
-        //TODO implement this 
-        // inputActions.Move.MoveRight.performed += ctx => ChangeLane(1);
-        inputActions.Move.JumpAction.performed += ctx => Jump();
+        inputActions.Player.Enable();
+
+        // Read Vector2 input from "Move action"
+        inputActions.Player.Moveaction.performed += ctx => moveInput = ctx.ReadValue<Vector2>();
+        inputActions.Player.Moveaction.canceled += ctx => moveInput = Vector2.zero;
+
+        // Jump
+        inputActions.Player.Jump.performed += OnJump;
     }
 
     void OnDisable()
     {
-        inputActions.Move.Moveaction.performed -= ctx => ChangeLane(-1);
-        // inputActions.Move.MoveRight.performed -= ctx => ChangeLane(1);
-        inputActions.Move.JumpAction.performed -= ctx => Jump();
-        inputActions.Move.Disable();
+        inputActions.Player.Moveaction.performed -= ctx => moveInput = ctx.ReadValue<Vector2>();
+        inputActions.Player.Moveaction.canceled -= ctx => moveInput = Vector2.zero;
+        inputActions.Player.Jump.performed -= OnJump;
+
+        inputActions.Player.Disable();
     }
 
     void Update()
     {
-        // Constant forward movement
-        moveDirection.z = forwardSpeed;
+        // Check lane input (only once per key press)
+        if (moveInput.x < 0) // A / Left
+        {
+            ChangeLane(-1);
+            moveInput = Vector2.zero; // consume input so it doesn’t spam
+        }
+        else if (moveInput.x > 0) // D / Right
+        {
+            ChangeLane(1);
+            moveInput = Vector2.zero;
+        }
 
-        // Gravity + jumping
+        // Forward move
+        Vector3 move = Vector3.forward * forwardSpeed * Time.deltaTime;
+
+        // Gravity
         if (controller.isGrounded)
         {
             if (verticalVelocity < 0)
-                verticalVelocity = -2f; // small downward force
+                verticalVelocity = -2f;
         }
         else
         {
             verticalVelocity += gravity * Time.deltaTime;
         }
 
-        moveDirection.y = verticalVelocity;
+        move.y = verticalVelocity * Time.deltaTime;
 
         // Smooth lane switching
-        Vector3 targetPosition = transform.position.z * Vector3.forward + Vector3.up * transform.position.y;
-        if (currentLane == -1) targetPosition += Vector3.left * laneDistance;
-        else if (currentLane == 1) targetPosition += Vector3.right * laneDistance;
+        float targetX = currentLane * laneDistance;
+        float newX = Mathf.Lerp(transform.position.x, targetX, laneSwitchSpeed * Time.deltaTime);
+        move.x = newX - transform.position.x;
 
-        Vector3 diff = targetPosition - transform.position;
-        Vector3 moveDir = diff.normalized * laneSwitchSpeed * Time.deltaTime;
-
-        if (moveDir.sqrMagnitude < diff.sqrMagnitude)
-            controller.Move(moveDir);
-        else
-            controller.Move(diff);
-
-        controller.Move(moveDirection * Time.deltaTime);
+        // Apply move
+        controller.Move(move);
     }
 
     void ChangeLane(int direction)
@@ -87,23 +92,31 @@ public class PlayerController : MonoBehaviour
         currentLane = Mathf.Clamp(currentLane + direction, -1, 1);
     }
 
-    void Jump()
+    void OnJump(InputAction.CallbackContext ctx)
     {
         if (controller.isGrounded)
-        {
             verticalVelocity = jumpForce;
-        }
     }
 
     public void TakeDamage()
     {
         lives--;
+
+        // Change color depending on remaining lives
+        Renderer rend = GetComponent<Renderer>();
+        if (rend != null)
+        {
+            if (lives == 2) rend.material.color = Color.yellow;
+            else if (lives == 1) rend.material.color = new Color(1f, 0.5f, 0f); // orange
+            else if (lives <= 0) rend.material.color = Color.red;
+        }
+
         Debug.Log("Lives left: " + lives);
 
         if (lives <= 0)
         {
             Debug.Log("Game Over!");
-            // TODO: trigger game over state
+            // TODO: trigger game over state (stop movement / show UI)
         }
     }
 }
