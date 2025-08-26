@@ -23,7 +23,7 @@ public class PlayerController : MonoBehaviour
 
     // Input system actions
     private PlayerInputActions inputActions;
-    
+
 
     void Awake()
     {
@@ -33,18 +33,19 @@ public class PlayerController : MonoBehaviour
 
     void OnEnable()
     {
-        inputActions.Player.Enable();
-        inputActions.Player.MoveLeft.performed += ctx => ChangeLane(-1);
-        inputActions.Player.MoveRight.performed += ctx => ChangeLane(1);
-        inputActions.Player.Jump.performed += ctx => Jump();
+        inputActions.Move.Enable();
+        inputActions.Move.Moveaction.performed += ctx => ChangeLane(-1);
+        //TODO implement this 
+        // inputActions.Move.MoveRight.performed += ctx => ChangeLane(1);
+        inputActions.Move.JumpAction.performed += ctx => Jump();
     }
 
     void OnDisable()
     {
-        inputActions.Player.MoveLeft.performed -= ctx => ChangeLane(-1);
-        inputActions.Player.MoveRight.performed -= ctx => ChangeLane(1);
-        inputActions.Player.Jump.performed -= ctx => Jump();
-        inputActions.Player.Disable();
+        inputActions.Move.Moveaction.performed -= ctx => ChangeLane(-1);
+        // inputActions.Move.MoveRight.performed -= ctx => ChangeLane(1);
+        inputActions.Move.JumpAction.performed -= ctx => Jump();
+        inputActions.Move.Disable();
     }
 
     void Update()
